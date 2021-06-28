@@ -212,18 +212,22 @@ public:
     std::string encode_state() {
         int i, j;
         std::stringstream ss;
+        // 現在的玩家是誰 1 或 2
         ss << cur_player << "\n";
+        // 現在的版面
         for (i = 0; i < SIZE; i++) {
             for (j = 0; j < SIZE-1; j++) {
                 ss << board[i][j] << " ";
             }
             ss << board[i][j] << "\n";
         }
+        // 對這個玩家和版面來說的可走清單
         ss << next_valid_spots.size() << "\n";
         for (size_t i = 0; i < next_valid_spots.size(); i++) {
             Point p = next_valid_spots[i];
             ss << p.x << " " << p.y << "\n";
         }
+        // 回傳 state 資訊
         return ss.str();
     }
 };
@@ -236,6 +240,7 @@ const int timeout = 5;
 
 void launch_executable(std::string filename) {
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+    // argv[0] 玩家的 ai argv[1] state argv[2] actions
     std::string command = "start /min " + filename + " " + file_state + " " + file_action;
     std::string kill = "timeout /t " + std::to_string(timeout) + " > NUL && taskkill /im " + filename + " > NUL 2>&1";
     system(command.c_str());
@@ -266,20 +271,20 @@ int main(int argc, char** argv) {
     log << data;
     while (!game.done) {
         // Output current state
-        data = game.encode_state();
-        std::ofstream fout(file_state);
-        fout << data;
+        data = game.encode_state();   // state 內的所有資訊存成一個字串，預設是 othello 建構子的 reset 內容
+        std::ofstream fout(file_state);    // 輸出檔案、向檔案輸出
+        fout << data;                      // 把剛剛的字串 data 寫入這個檔案內
         fout.close();
         // Run external program
-        launch_executable(player_filename[game.cur_player]);
+        launch_executable(player_filename[game.cur_player]);   // 執行這個 player 的 exe 檔案、傳入 state 和 action
         // Read action
-        std::ifstream fin(file_action);
+        std::ifstream fin(file_action);   // 輸入檔案
         Point p(-1, -1);
-        while (true) {
+        while (true) {   // 從 action 檔案裡的所有 spot 讀入
             int x, y;
             if (!(fin >> x)) break;
             if (!(fin >> y)) break;
-            p.x = x; p.y = y;
+            p.x = x; p.y = y;   // 不管輸入多少 action 只會保留最後一個 spot
         }
         fin.close();
         // Reset action file
@@ -293,10 +298,11 @@ int main(int argc, char** argv) {
             log << data;
             break;
         }
+        // If action is valid.
         data = game.encode_output();
         std::cout << data;
         log << data;
-    }
+    }   // end while, go next round
     log.close();
     // Reset state file
     if (remove(file_state.c_str()) != 0)

@@ -7,7 +7,7 @@
 #include <ctime>
 #define DEBUG 1
 #define INF 99999999
-#define DEPTH 4
+#define DEPTH 2
 #define MAXLEVEL 1
 #define MINLEVEL 0
 using namespace std;
@@ -280,6 +280,7 @@ int main(int, char** argv) {
     read_board(fin);
     read_valid_spots(fin);
     cur_othello.cur_player = player;
+    if (DEBUG) { cout << "-- player " << player << '\n'; }
     cur_othello.calculate_heuristic();
     write_valid_spot(fout);
     fin.close();
