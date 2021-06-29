@@ -1,10 +1,12 @@
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 #include <array>
 #include <vector>
+#include <utility>
 #include <cstdlib>
 #include <ctime>
-#include <algorithm>
+
 #define INF 99999999
 #define MAXMODE 1
 #define MINIMODE -1
@@ -18,15 +20,13 @@ struct Point {
 	bool operator!=(const Point& rhs) const { return !operator==(rhs); }
 	Point operator+(const Point& rhs) const { return Point(x + rhs.x, y + rhs.y); }
 	Point operator-(const Point& rhs) const { return Point(x - rhs.x, y - rhs.y); }
-    Point operator=(const Point &rhs) const {
-        Point ret;
-        ret.x = rhs.x;
-        ret.y = rhs.y;
-        return ret;
-    }
+    // void operator=(const Point &rhs) {
+    //     this->x = rhs.x;
+    //     this->y = rhs.y;
+    // }
 };
 
-int Player;   // 這個 ai 是黑或白 (fixed)
+int Player;   // this AI (Fixed)
 const int SIZE = 8;
 const int weight_matrix[SIZE][SIZE] = {
     { 100, -10,  11,   6,   6,  11, -10, 100},
@@ -48,66 +48,63 @@ class OthelloState {
         }};
         
         array<array<int, SIZE>, SIZE> board;    // 版面
-        vector<Point> next_valid_spots;    // 對此版面和玩家來說的
-        int cur_player;   // 這個 state 的玩家是誰 (moved)
-        bool done;    // game end ?
-        int winner;   // if end, who is the winner
+        vector<Point> next_valid_spots;    // 對此版面和玩家來說的可走
+
+        int cur_player;   // the player in this state (Moved)
+        int round;
+        bool done;        // game ends or not
+        int winner;       // if ends, who's the winner
         int heuristic;
-        int height;
 
     private: // methods
-        // 對 cur_player 來說的另一位玩家
         int get_next_player(int player) const { return 3 - player; }
-        // 有沒有超出板子
+        int get_disc(Point p) const { return board[p.x][p.y]; }   // __getitem__
+        void set_disc(Point p, int disc) { board[p.x][p.y] = disc; }   // ___setitem__
         bool is_spot_on_board(Point p) const { return 0 <= p.x && p.x < SIZE && 0 <= p.y && p.y < SIZE; }
-        // get item on the board
-        int get_disc(Point p) const { return board[p.x][p.y]; }
-        // set item
-        void set_disc(Point p, int disc) { board[p.x][p.y] = disc; }
-        // 在 p 點上是不是 disc 這個棋
         bool is_disc_at(Point p, int disc) const {
-            if (!is_spot_on_board(p))  // P點不合理
+            if (!is_spot_on_board(p))  // whether p is on the board
                 return false;
-            if (get_disc(p) != disc)  // P點不是這個棋
+            if (get_disc(p) != disc)  // whether <int disc> is at <Point p>
                 return false;
             return true;
         }
         bool is_spot_valid(Point center) const {
             if (get_disc(center) != EMPTY)
                 return false;
-            for (Point dir: directions) {
+            for (Point dir : directions) {
                 // Move along the direction while testing.
                 Point p = center + dir;
-                // 至少有一顆敵人在這個方向
+                // at least one opponent's disc in this direction
                 if (!is_disc_at(p, get_next_player(cur_player)))
                     continue;
-                // 一直延伸直到碰壁或遇到 empty (不能包起來)
+                // extend until exceed the boundary or meet EMPTY, i.e. can't be flanked
                 p = p + dir;
                 while (is_spot_on_board(p) && get_disc(p) != EMPTY) {
+                    // meet cur_player's disc, i.e. can be flanked
                     if (is_disc_at(p, cur_player))
-                        return true;   // 遇到自己表示可包起來
+                        return true;
                     p = p + dir;
                 }
             }
             return false;
         }
-        // 反轉可以圍起來的棋子
+        // flip all opponent's discs which are flanked
         void flip_discs(Point center) {
             for (Point dir: directions) {
                 // Move along the direction while testing.
                 Point p = center + dir;
                 if (!is_disc_at(p, get_next_player(cur_player)))
                     continue;
-                vector<Point> discs({p});
+                vector<Point> discs({p});   // record the points that should be fliped
                 p = p + dir;
                 while (is_spot_on_board(p) && get_disc(p) != EMPTY) {
-                    // 遇到自己
+                    // meet cur_player's disc, filp all points in record
                     if (is_disc_at(p, cur_player)) {
                         for (Point s: discs)
                             set_disc(s, cur_player);
                         break;
                     }
-                    // 路徑上的敵人
+                    // record all points that should be fliped
                     discs.push_back(p);
                     p = p + dir;
                 }
@@ -123,10 +120,11 @@ class OthelloState {
             board[3][4] = board[4][3] = BLACK;
             board[3][3] = board[4][4] = WHITE;
             cur_player = BLACK;
+            round = 0;
             done = false;
             winner = -1;
-            next_valid_spots = get_valid_spots();
             heuristic = -1;
+            next_valid_spots = get_valid_spots();
         }
         // 從 read 讀入的 state
         OthelloState(array<array<int, SIZE>, SIZE> arr) {
@@ -134,10 +132,11 @@ class OthelloState {
                 for (int j = 0; j < SIZE; j++)
                     board[i][j] = arr[i][j];
             cur_player = Player;
+            round = 0;
             done = false;
             winner = -1;
-            next_valid_spots.clear();
             heuristic = -1;
+            next_valid_spots = get_valid_spots();
         }
         // copy constructor
         OthelloState(const OthelloState& rhs) {
@@ -145,10 +144,11 @@ class OthelloState {
                 for (int j = 0; j < SIZE; j++)
                     board[i][j] = rhs.board[i][j];
             cur_player = rhs.cur_player;
+            round = rhs.round;
             done = rhs.done;
             winner = rhs.winner;
-            next_valid_spots = rhs.next_valid_spots;
             heuristic = rhs.heuristic;
+            next_valid_spots = rhs.next_valid_spots;
         }
         // 找對當前玩家的可放位置
         vector<Point> get_valid_spots() const {
@@ -167,24 +167,24 @@ class OthelloState {
 
         // update
         void put_disc(Point point) {
-            flip_discs(point);    // 處理可圍
+            flip_discs(point);    // flip flanked points
             // Give control to the other player, update state's attributes
             cur_player = get_next_player(cur_player);
             next_valid_spots = get_valid_spots();
             // Check win
             if (next_valid_spots.size() == 0) {
+                vector<Point> copy = next_valid_spots;
                 cur_player = get_next_player(cur_player);
                 next_valid_spots = get_valid_spots();
                 if (next_valid_spots.size() == 0)
                     done = true;
                 else {
                     cur_player = get_next_player(cur_player);
-                    next_valid_spots = get_valid_spots();
+                    next_valid_spots = copy;
                 }
             }
-            height++;
+            round++;
         }
-
     int weight() {
         int ret = 0, next_player = get_next_player(cur_player);
         for (int i = 0; i < SIZE; i++) {
@@ -250,28 +250,28 @@ class OthelloState {
                 else break;
         }
 
-        if (board[0][0] && board[0][7] && board[0][1] == board[0][2] == board[0][3] == board[0][4] == board[0][5] == board[0][6]) {
+        if (board[0][0] && board[0][7] && (((((board[0][1] == board[0][2]) == board[0][3]) == board[0][4]) == board[0][5]) == board[0][6])) {
             if (board[0][1] == Player)
                 ret += edge * 6;
             else if (board[0][1] == get_next_player(Player))
                 ret -= edge * 6;
         }
 
-        if (board[0][0] && board[7][0] && board[1][0] == board[2][0] == board[3][0] == board[4][0] == board[5][0] == board[6][0]) {
+        if (board[0][0] && board[7][0] && (((((board[1][0] == board[2][0]) == board[3][0]) == board[4][0]) == board[5][0]) == board[6][0])) {
             if (board[1][0] == Player)
                 ret += edge * 6;
             else if (board[1][0] == get_next_player(Player))
                 ret -= edge * 6;
         }
 
-        if (board[0][7] && board[7][7] && board[1][7] == board[2][7] == board[3][7] == board[4][7] == board[5][7] == board[6][7]) {
+        if (board[0][7] && board[7][7] && (((((board[1][7] == board[2][7]) == board[3][7]) == board[4][7]) == board[5][7]) == board[6][7])) {
             if (board[1][7] == Player)
                 ret += edge * 6;
             else if (board[1][7] == get_next_player(Player))
                 ret -= edge * 6;
         }
 
-        if (board[7][0] && board[7][7] && board[7][1] == board[7][2] == board[7][3] == board[7][4] == board[7][5] == board[7][6]) {
+        if (board[7][0] && board[7][7] && (((((board[7][1] == board[7][2]) == board[7][3]) == board[7][4]) == board[7][5]) == board[7][6])) {
             if (board[7][1] == Player)
                 ret += edge * 6;
             else if (board[7][1] == get_next_player(Player))
@@ -302,6 +302,7 @@ class OthelloState {
             heuristic = num_player_discs - num_oppenent_discs;
             return;
         }
+        // add more components
         heuristic += weight();
         heuristic += stability();
         heuristic += mobility() * 2 * (1 - (num_player_discs + num_oppenent_discs) / 64);
@@ -329,7 +330,7 @@ void read_valid_spots(ifstream& fin) {
     int x, y;
     for (int i = 0; i < num_valid_spots; i++) {
         fin >> x >> y;
-        Next_valid_spots.push_back({x, y});
+        Next_valid_spots.push_back(Point(x, y));
     }
 }
 
@@ -347,8 +348,8 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
             int rec = Minimax(next_state, depth - 1, alpha, beta, MINIMODE);
             value = max(value, rec);
             alpha = max(alpha, value);
-            if (next_state.height == 0)
-                ans.push_back((value, pair<int, Point>(value, spot)));
+            if (next_state.round == 0)
+                ans.push_back(pair<int, Point>(value, spot));
             if (alpha >= beta)
                 break;
         }
@@ -361,20 +362,29 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
             int rec = Minimax(next_state, depth - 1, alpha, beta, MAXMODE);
             value = min(value, rec);
             beta = min(beta, value);
+            if (cur_state.round == 0)
+                ans.push_back(pair<int, Point>(value, spot));
             if (beta <= alpha)
                 break;
         }
         return value;
-    }
+    } else
+        return 0;
 }
 
 // 隨機從可用清單選一個，放回 action
 void write_valid_spot(ofstream& fout) {
     OthelloState cur_othello(Board);
     cur_othello.next_valid_spots = Next_valid_spots;
-    int value = Minimax(cur_othello, 5, -INF, INF, (cur_othello.cur_player == Player ? MAXMODE : MINIMODE));
-    // TODO
-    
+    int value = Minimax(cur_othello, 3, -INF, INF, MAXMODE);
+    Point next_disc;
+    for (auto it : ans)
+        if (it.first == value) {
+            next_disc = it.second;
+            break;
+        }
+    fout << next_disc.x << " " << next_disc.y << endl;
+    fout.flush();
 }
 
 int main(int, char** argv) {
