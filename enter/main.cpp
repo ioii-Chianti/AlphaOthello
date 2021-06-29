@@ -236,7 +236,7 @@ const std::string file_log = "gamelog.txt";
 const std::string file_state = "state";   // 幾位玩家、版面、合法位置數量、所有合法位置
 const std::string file_action = "action";   // 輸出如何移動
 // Timeout is set to 10 when TA test your code.
-const int timeout = 5;
+const int timeout = 10;
 
 void launch_executable(std::string filename) {
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
@@ -288,8 +288,8 @@ int main(int argc, char** argv) {
         }
         fin.close();
         // Reset action file
-        if (remove(file_action.c_str()) != 0)
-            std::cerr << "Error removing file: " << file_action << "\n";
+        // if (remove(file_action.c_str()) != 0)
+        //     std::cerr << "Error removing file: " << file_action << "\n";
         // Take action
         if (!game.put_disc(p)) {
             // If action is invalid.
@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
     }   // end while, go next round
     log.close();
     // Reset state file
-    if (remove(file_state.c_str()) != 0)
-        std::cerr << "Error removing file: " << file_state << "\n";
+    // if (remove(file_state.c_str()) != 0)
+    //     std::cerr << "Error removing file: " << file_state << "\n";
     return 0;
 }

@@ -6,10 +6,9 @@
 #include <utility>
 #include <cstdlib>
 #include <ctime>
-
-#define INF 99999999
+#define INF 99999
 #define MAXMODE 1
-#define MINIMODE -1
+#define MINIMODE 2
 using namespace std;
 
 struct Point {
@@ -20,10 +19,6 @@ struct Point {
 	bool operator!=(const Point& rhs) const { return !operator==(rhs); }
 	Point operator+(const Point& rhs) const { return Point(x + rhs.x, y + rhs.y); }
 	Point operator-(const Point& rhs) const { return Point(x - rhs.x, y - rhs.y); }
-    // void operator=(const Point &rhs) {
-    //     this->x = rhs.x;
-    //     this->y = rhs.y;
-    // }
 };
 
 int Player;   // this AI (Fixed)
@@ -36,25 +31,202 @@ const int weight_matrix[SIZE][SIZE] = {
     {   6,   2,   4,   2,   2,   4,   2,   6},
     {  10,   1,   5,   4,   4,   5,   1,  10},
     { -10, -20,   1,   2,   2,   1, -20, -10},
-    { 100, -10,  11,   6,   6,  11, -10, 100}};
+    { 100, -10,  11,   6,   6,  11, -10, 100}
+};
 
 class OthelloState {
-    public: // attributes
+    public:
+        /* const */
         enum SPOT_STATE { EMPTY = 0, BLACK = 1, WHITE = 2 };
         const array<Point, 8> directions{{
             Point(-1, -1), Point(-1, 0), Point(-1, 1),
             Point(0, -1), /*{0, 0}, */Point(0, 1),
             Point(1, -1), Point(1, 0), Point(1, 1)
         }};
-        
+
+        /* attributes */
         array<array<int, SIZE>, SIZE> board;    // 版面
         vector<Point> next_valid_spots;    // 對此版面和玩家來說的可走
-
         int cur_player;   // the player in this state (Moved)
         int round;
         bool done;        // game ends or not
-        int winner;       // if ends, who's the winner
         int heuristic;
+
+        /* methods */
+        // 從 read 讀入的 state
+        OthelloState(array<array<int, SIZE>, SIZE> arr) {
+            for (int i = 0; i < SIZE; i++)
+                for (int j = 0; j < SIZE; j++)
+                    board[i][j] = arr[i][j];
+            cur_player = Player;
+            round = 0;
+            done = false;
+            heuristic = 0;
+        }
+        // copy constructor
+        OthelloState(const OthelloState& rhs) {
+            for (int i = 0; i < SIZE; i++)
+                for (int j = 0; j < SIZE; j++)
+                    board[i][j] = rhs.board[i][j];
+            cur_player = rhs.cur_player;
+            round = rhs.round;
+            done = rhs.done;
+            heuristic = rhs.heuristic;
+            next_valid_spots = rhs.next_valid_spots;
+        }
+        // 找對當前玩家的可放位置
+        vector<Point> get_valid_spots() const {
+            vector<Point> valid_spots;
+            for (int i = 0; i < SIZE; i++) {
+                for (int j = 0; j < SIZE; j++) {
+                    if (board[i][j] != EMPTY)
+                        continue;
+                    Point p = Point(i, j);
+                    if (is_spot_valid(p))
+                        valid_spots.push_back(p);
+                }
+            }
+            return valid_spots;
+        }
+
+        // update
+        void put_disc(Point point) {
+            flip_discs(point);    // flip flanked points
+            // Give control to the other player, update state's attributes
+            cur_player = get_next_player(cur_player);
+            next_valid_spots = get_valid_spots();
+            // Check win
+            if (next_valid_spots.size() == 0) {
+                vector<Point> copy = next_valid_spots;
+                cur_player = get_next_player(cur_player);
+                next_valid_spots = get_valid_spots();
+                if (next_valid_spots.size() == 0)
+                    done = true;
+                else {
+                    cur_player = get_next_player(cur_player);
+                    next_valid_spots = copy;
+                }
+            }
+            round++;
+        }
+    int weight() {
+        int ret = 0, next_player = get_next_player(Player);
+        for (int i = 0; i < SIZE; i++) {
+            for (int j = 0; j < SIZE; j++) {
+                if (board[i][j] == Player)
+                    ret += weight_matrix[i][j];
+                else if (board[i][j] == next_player)
+                    ret -= weight_matrix[i][j];
+            }
+        }
+        return ret;
+    }
+    int stability() {
+        const int edge = 200;
+        int ret = 0;
+
+        if (board[0][0]) {
+            int sign = board[0][0] == Player ? 1 : -1;
+            for (int row = 1; row < 7; row++)
+                if (board[0][0] == board[row][0])
+                    ret += sign * edge;
+                else break;
+            for (int col = 1; col < 7; col++)
+                if (board[0][0] == board[0][col])
+                    ret += sign * edge;
+                else break;
+        }
+        if (board[0][7]) {
+            int sign = board[0][7] == Player ? 1 : -1;
+            for (int row = 1; row < 7; row++)
+                if (board[0][7] == board[row][7])
+                    ret += sign * edge;
+                else break;
+            for (int col = 6; col > 0; col--)
+                if (board[0][7] == board[0][col])
+                    ret += sign * edge;
+                else break;
+        }
+        if (board[7][0]) {
+            int sign = board[7][0] == Player ? 1 : -1;
+            for (int row = 6; row > 0; row--)
+                if (board[7][0] == board[row][0])
+                    ret += sign * edge;
+                else break;
+            for (int col = 1; col < 7; col++)
+                if (board[7][0] == board[7][col])
+                    ret += sign * edge;
+                else break;
+        }
+        if (board[7][7]) {
+            int sign = board[7][7] == Player ? 1 : -1;
+            for (int row = 6; row > 0; row--)
+                if (board[7][7] == board[row][7])
+                    ret += sign * edge;
+                else break;
+            for (int col = 6; col > 0; col--)
+                if (board[7][7] == board[7][col])
+                    ret += sign * edge;
+                else break;
+        }
+
+        if (board[0][0] && board[0][7] && (((((board[0][1] == board[0][2]) == board[0][3]) == board[0][4]) == board[0][5]) == board[0][6])) {
+            if (board[0][1] == Player)
+                ret += edge * 6;
+            else if (board[0][1] == get_next_player(Player))
+                ret -= edge * 6;
+        }
+
+        if (board[0][0] && board[7][0] && (((((board[1][0] == board[2][0]) == board[3][0]) == board[4][0]) == board[5][0]) == board[6][0])) {
+            if (board[1][0] == Player)
+                ret += edge * 6;
+            else if (board[1][0] == get_next_player(Player))
+                ret -= edge * 6;
+        }
+
+        if (board[0][7] && board[7][7] && (((((board[1][7] == board[2][7]) == board[3][7]) == board[4][7]) == board[5][7]) == board[6][7])) {
+            if (board[1][7] == Player)
+                ret += edge * 6;
+            else if (board[1][7] == get_next_player(Player))
+                ret -= edge * 6;
+        }
+
+        if (board[7][0] && board[7][7] && (((((board[7][1] == board[7][2]) == board[7][3]) == board[7][4]) == board[7][5]) == board[7][6])) {
+            if (board[7][1] == Player)
+                ret += edge * 6;
+            else if (board[7][1] == get_next_player(Player))
+                ret -= edge * 6;
+        }
+        return ret;
+    }
+    int mobility() {
+        int ret = next_valid_spots.size();
+        if (cur_player != Player)
+            ret *= -1;
+        return ret;
+    }
+    
+    void set_heuristic() {
+        heuristic = 0;
+        // number of discs
+        int num_player_discs, num_oppenent_discs;
+        for (int i = 0; i < SIZE; i++) {
+            for (int j = 0; j < SIZE; j++){
+                if (board[i][j] == Player)
+                    num_player_discs++;
+                else if (board[i][j] == get_next_player(Player))
+                    num_oppenent_discs++;
+            }
+        }
+        if (done) {
+            heuristic = num_player_discs - num_oppenent_discs;
+            return;
+        }
+        // add more components
+        heuristic += weight();
+        heuristic += stability();
+        heuristic += mobility() * 2 * (1 - (num_player_discs + num_oppenent_discs) / 64);
+    }
 
     private: // methods
         int get_next_player(int player) const { return 3 - player; }
@@ -110,203 +282,6 @@ class OthelloState {
                 }
             }
         }
-    public: // methods
-        // 重設成初始版面 只有四顆 設定 attr
-        OthelloState() { 
-            for (int i = 0; i < SIZE; i++) {
-                for (int j = 0; j < SIZE; j++)
-                    board[i][j] = EMPTY;
-            }
-            board[3][4] = board[4][3] = BLACK;
-            board[3][3] = board[4][4] = WHITE;
-            cur_player = BLACK;
-            round = 0;
-            done = false;
-            winner = -1;
-            heuristic = -1;
-            next_valid_spots = get_valid_spots();
-        }
-        // 從 read 讀入的 state
-        OthelloState(array<array<int, SIZE>, SIZE> arr) {
-            for (int i = 0; i < SIZE; i++)
-                for (int j = 0; j < SIZE; j++)
-                    board[i][j] = arr[i][j];
-            cur_player = Player;
-            round = 0;
-            done = false;
-            winner = -1;
-            heuristic = -1;
-            next_valid_spots = get_valid_spots();
-        }
-        // copy constructor
-        OthelloState(const OthelloState& rhs) {
-            for (int i = 0; i < SIZE; i++)
-                for (int j = 0; j < SIZE; j++)
-                    board[i][j] = rhs.board[i][j];
-            cur_player = rhs.cur_player;
-            round = rhs.round;
-            done = rhs.done;
-            winner = rhs.winner;
-            heuristic = rhs.heuristic;
-            next_valid_spots = rhs.next_valid_spots;
-        }
-        // 找對當前玩家的可放位置
-        vector<Point> get_valid_spots() const {
-            vector<Point> valid_spots;
-            for (int i = 0; i < SIZE; i++) {
-                for (int j = 0; j < SIZE; j++) {
-                    if (board[i][j] != EMPTY)
-                        continue;
-                    Point p = Point(i, j);
-                    if (is_spot_valid(p))
-                        valid_spots.push_back(p);
-                }
-            }
-            return valid_spots;
-        }
-
-        // update
-        void put_disc(Point point) {
-            flip_discs(point);    // flip flanked points
-            // Give control to the other player, update state's attributes
-            cur_player = get_next_player(cur_player);
-            next_valid_spots = get_valid_spots();
-            // Check win
-            if (next_valid_spots.size() == 0) {
-                vector<Point> copy = next_valid_spots;
-                cur_player = get_next_player(cur_player);
-                next_valid_spots = get_valid_spots();
-                if (next_valid_spots.size() == 0)
-                    done = true;
-                else {
-                    cur_player = get_next_player(cur_player);
-                    next_valid_spots = copy;
-                }
-            }
-            round++;
-        }
-    int weight() {
-        int ret = 0, next_player = get_next_player(cur_player);
-        for (int i = 0; i < SIZE; i++) {
-            for (int j = 0; j < SIZE; j++) {
-                if (board[i][j] == cur_player)
-                    ret += weight_matrix[i][j];
-                else if (board[i][j] == next_player)
-                    ret -= weight_matrix[i][j];
-            }
-        }
-        return ret;
-    }
-    int stability() {
-        const int edge = 200;
-        int ret = 0;
-
-        // 左上角
-        if (board[0][0]) {
-            int sign = board[0][0] == Player ? 1 : -1;
-            for (int row = 1; row < 7; row++)
-                if (board[0][0] == board[row][0])
-                    ret += sign * edge;
-                else break;
-            for (int col = 1; col < 7; col++)
-                if (board[0][0] == board[0][col])
-                    ret += sign * edge;
-                else break;
-        }
-        // 右上角
-        if (board[0][7]) {
-            int sign = board[0][7] == Player ? 1 : -1;
-            for (int row = 1; row < 7; row++)
-                if (board[0][7] == board[row][7])
-                    ret += sign * edge;
-                else break;
-            for (int col = 6; col > 0; col--)
-                if (board[0][7] == board[0][col])
-                    ret += sign * edge;
-                else break;
-        }
-        // 左下角
-        if (board[7][0]) {
-            int sign = board[7][0] == Player ? 1 : -1;
-            for (int row = 6; row > 0; row--)
-                if (board[7][0] == board[row][0])
-                    ret += sign * edge;
-                else break;
-            for (int col = 1; col < 7; col++)
-                if (board[7][0] == board[7][col])
-                    ret += sign * edge;
-                else break;
-        }
-        // 右下角
-        if (board[7][7]) {
-            int sign = board[7][7] == Player ? 1 : -1;
-            for (int row = 6; row > 0; row--)
-                if (board[7][7] == board[row][7])
-                    ret += sign * edge;
-                else break;
-            for (int col = 6; col > 0; col--)
-                if (board[7][7] == board[7][col])
-                    ret += sign * edge;
-                else break;
-        }
-
-        if (board[0][0] && board[0][7] && (((((board[0][1] == board[0][2]) == board[0][3]) == board[0][4]) == board[0][5]) == board[0][6])) {
-            if (board[0][1] == Player)
-                ret += edge * 6;
-            else if (board[0][1] == get_next_player(Player))
-                ret -= edge * 6;
-        }
-
-        if (board[0][0] && board[7][0] && (((((board[1][0] == board[2][0]) == board[3][0]) == board[4][0]) == board[5][0]) == board[6][0])) {
-            if (board[1][0] == Player)
-                ret += edge * 6;
-            else if (board[1][0] == get_next_player(Player))
-                ret -= edge * 6;
-        }
-
-        if (board[0][7] && board[7][7] && (((((board[1][7] == board[2][7]) == board[3][7]) == board[4][7]) == board[5][7]) == board[6][7])) {
-            if (board[1][7] == Player)
-                ret += edge * 6;
-            else if (board[1][7] == get_next_player(Player))
-                ret -= edge * 6;
-        }
-
-        if (board[7][0] && board[7][7] && (((((board[7][1] == board[7][2]) == board[7][3]) == board[7][4]) == board[7][5]) == board[7][6])) {
-            if (board[7][1] == Player)
-                ret += edge * 6;
-            else if (board[7][1] == get_next_player(Player))
-                ret -= edge * 6;
-        }
-        return ret;
-    }
-    int mobility() {
-        int ret = next_valid_spots.size();
-        if (cur_player != Player)
-            ret *= -1;
-        return ret;
-    }
-    
-    void set_heuristic() {
-        heuristic = 0;
-        // number of discs
-        int num_player_discs, num_oppenent_discs;
-        for (int i = 0; i < SIZE; i++) {
-            for (int j = 0; j < SIZE; j++){
-                if (board[i][j] == cur_player)
-                    num_player_discs++;
-                else if (board[i][j] == get_next_player(cur_player))
-                    num_oppenent_discs++;
-            }
-        }
-        if (done) {
-            heuristic = num_player_discs - num_oppenent_discs;
-            return;
-        }
-        // add more components
-        heuristic += weight();
-        heuristic += stability();
-        heuristic += mobility() * 2 * (1 - (num_player_discs + num_oppenent_discs) / 64);
-    }
 };
 
 int num_valid_spots;
@@ -334,7 +309,7 @@ void read_valid_spots(ifstream& fin) {
     }
 }
 
-vector<pair<int, Point>> ans;
+vector<pair<int, Point>> decisions;
 int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
     if (depth == 0 || cur_state.done) {
         cur_state.set_heuristic();
@@ -343,13 +318,13 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
     if (mode == MAXMODE) {
         int value = -INF;
         for (Point spot : cur_state.next_valid_spots) {
-            OthelloState next_state(cur_state);
+            OthelloState next_state = cur_state;
             next_state.put_disc(spot);
             int rec = Minimax(next_state, depth - 1, alpha, beta, MINIMODE);
             value = max(value, rec);
             alpha = max(alpha, value);
-            if (next_state.round == 0)
-                ans.push_back(pair<int, Point>(value, spot));
+            if (cur_state.round == 0)
+                decisions.push_back(pair<int, Point>(value, spot));
             if (alpha >= beta)
                 break;
         }
@@ -357,28 +332,38 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
     } else if (mode == MINIMODE) {
         int value = INF;
         for (Point spot : cur_state.next_valid_spots) {
-            OthelloState next_state(cur_state);
+            OthelloState next_state = cur_state;
             next_state.put_disc(spot);
             int rec = Minimax(next_state, depth - 1, alpha, beta, MAXMODE);
             value = min(value, rec);
             beta = min(beta, value);
             if (cur_state.round == 0)
-                ans.push_back(pair<int, Point>(value, spot));
+                decisions.push_back(pair<int, Point>(value, spot));
             if (beta <= alpha)
                 break;
         }
         return value;
-    } else
-        return 0;
+    }
+    return -1;
 }
 
 // 隨機從可用清單選一個，放回 action
 void write_valid_spot(ofstream& fout) {
     OthelloState cur_othello(Board);
     cur_othello.next_valid_spots = Next_valid_spots;
-    int value = Minimax(cur_othello, 3, -INF, INF, MAXMODE);
+
+    int value = Minimax(cur_othello, 1, -INF, INF, (cur_othello.cur_player == Player ? MAXMODE : MINIMODE));
     Point next_disc;
-    for (auto it : ans)
+    for (auto it : decisions)
+        if (it.first == value) {
+            next_disc = it.second;
+            break;
+        }
+    fout << next_disc.x << " " << next_disc.y << endl;
+    fout.flush();
+
+    value = Minimax(cur_othello, 5, -INF, INF, (cur_othello.cur_player == Player ? MAXMODE : MINIMODE));
+    for (auto it : decisions)
         if (it.first == value) {
             next_disc = it.second;
             break;
