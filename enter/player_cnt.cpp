@@ -216,7 +216,6 @@ class OthelloState {
             heuristic = bias;
             return;
         }
-        // add components
         heuristic = weight() + 2 * mobility() + 2 * stability();
     }
 
@@ -301,7 +300,7 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
     if (depth == 0 || cur_state.done) {
         cur_state.set_heuristic();
         return cur_state.heuristic;
-    }
+    } 
     if (mode == MAXMODE) {
         int value = -INF;
         for (Point spot : cur_state.next_valid_spots) {
@@ -336,6 +335,7 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
         }
         return value;
     }
+    return 0;
 }
 
 // output back to action

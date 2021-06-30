@@ -288,8 +288,8 @@ int main(int argc, char** argv) {
         }
         fin.close();
         // Reset action file
-        if (remove(file_action.c_str()) != 0)
-            std::cerr << "Error removing file: " << file_action << "\n";
+        // if (remove(file_action.c_str()) != 0)
+        //     std::cerr << "Error removing file: " << file_action << "\n";
         // Take action
         if (!game.put_disc(p)) {
             // If action is invalid.
@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
     }   // end while, go next round
     log.close();
     // Reset state file
-    if (remove(file_state.c_str()) != 0)
-        std::cerr << "Error removing file: " << file_state << "\n";
+    // if (remove(file_state.c_str()) != 0)
+    //     std::cerr << "Error removing file: " << file_state << "\n";
     return 0;
 }
