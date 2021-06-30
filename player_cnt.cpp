@@ -21,7 +21,7 @@ struct Point {
 	Point operator-(const Point& rhs) const { return Point(x - rhs.x, y - rhs.y); }
 };
 
-int Player;   // this AI (Fixed)
+int Player;
 const int SIZE = 8;
 const int weight_matrix[SIZE][SIZE] = {
     { 100, -10,  11,   6,   6,  11, -10, 100},
@@ -122,7 +122,7 @@ class OthelloState {
         return ret;
     }
     int stability() {
-        const int edge = 200;
+        const int edge = 100;
         int ret = 0;
 
         if (board[0][0]) {
@@ -222,7 +222,10 @@ class OthelloState {
             heuristic = num_player_discs - num_oppenent_discs;
             return;
         }
+
+        int coin_parity = 100 * (num_player_discs - num_oppenent_discs) / (num_player_discs + num_oppenent_discs);
         // add more components
+        heuristic += coin_parity;
         heuristic += weight();
         heuristic += stability();
         heuristic += mobility() * 2 * (1 - (num_player_discs + num_oppenent_discs) / 64);
@@ -352,6 +355,7 @@ void write_valid_spot(ofstream& fout) {
     OthelloState cur_othello(Board);
     cur_othello.next_valid_spots = Next_valid_spots;
 
+    // (cur_othello.cur_player == Player ? MAXMODE : MINIMODE)
     int value = Minimax(cur_othello, 1, -INF, INF, (cur_othello.cur_player == Player ? MAXMODE : MINIMODE));
     Point next_disc;
     for (auto it : decisions)
