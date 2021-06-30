@@ -12,6 +12,7 @@
 #define MINIMODE 2
 #define PRECISION 6
 using namespace std;
+// update: 0630 20:25
 
 struct Point {
     int x, y;
@@ -130,41 +131,34 @@ class OthelloState {
         if (disc_counts[EMPTY] >= 40)
             return 0;
 
-        int move = 0, stable_discs = 0;
-            // check player: moving col by col from each corner
+        int stable_discs = 0;
+            
             for (int cn = 0; cn < 4; cn++) {
+                // check player: moving col by col from each corner
                 Point pos = col_corner[cn];
-                for (move = 1; move <= 6; move++) {
+                for (int move = 1; move <= 6; move++) {
                     if (get_disc(pos) != Player)
                         break;
                     stable_discs++;
                     pos = pos + col_vector[cn % 2];
                 }
-            }
-            // check player: moving row by row from each corner
-            for (int cn = 0; cn < 4; cn++) {
-                Point pos = row_corner[cn];
-                for (move = 1; move <= 6; move++) {
+                pos = row_corner[cn];
+                for (int move = 1; move <= 6; move++) {
                     if (get_disc(pos) != Player)
                         break;
                     stable_discs++;
                     pos = pos + row_vector[cn % 2];
                 }
-            }
-            // check opponent: moving col by col from each corner
-            for (int cn = 0; cn < 4; cn++) {
-                Point pos = col_corner[cn];
-                for (move = 1; move <= 6; move++) {
+                // check opponent: moving col by col from each corner
+                pos = col_corner[cn];
+                for (int move = 1; move <= 6; move++) {
                     if (get_disc(pos) != get_next_player(Player))
                         break;
                     stable_discs--;
                     pos = pos + col_vector[cn % 2];
                 }
-            }
-            // check opponent: moving row by row from each corner
-            for (int cn = 0; cn < 4; cn++) {
-                Point pos = row_corner[cn];
-                for (move = 1; move <= 6; move++) {
+                pos = row_corner[cn];
+                for (int move = 1; move <= 6; move++) {
                     if (get_disc(pos) != get_next_player(Player))
                         break;
                     stable_discs--;
@@ -199,6 +193,7 @@ class OthelloState {
     }
     
     void set_heuristic() {
+        heuristic = 0;
         // count the number of discs
         int opponent = get_next_player(Player);
         for (int i = 0; i < SIZE; i++) {
@@ -295,7 +290,7 @@ void read_valid_spots(ifstream &fin) {
     }
 }
 
-map<int, Point> decisions;
+vector<pair<int, Point>> decisions;
 int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
     if (depth == 0 || cur_state.done) {
         cur_state.set_heuristic();
@@ -315,7 +310,7 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
             //    then rec will be one of the suitable decision
             //    so put the heuristic value and corresponding spot into map.
             if (cur_state.round == 0)
-                decisions[rec] = spot;
+                decisions.push_back(pair<int, Point>(rec, spot));
             if (alpha >= beta)
                 break;
         }
@@ -329,7 +324,7 @@ int Minimax(OthelloState cur_state, int depth, int alpha, int beta, int mode) {
             value = min(value, rec);
             beta = min(beta, value);
             if (cur_state.round == 0)
-                decisions[rec] = spot;
+                decisions.push_back(pair<int, Point>(rec, spot));
             if (beta <= alpha)
                 break;
         }
@@ -343,7 +338,11 @@ void write_valid_spot(ofstream &fout) {
     OthelloState cur_othello(Board);
     // find the heuristic value we should choose this state
     int value = Minimax(cur_othello, 1, -INF, INF, MAXMODE);
-    Point next_disc = decisions[value];
+    Point next_disc;
+    for (pair<int, Point> it : decisions) {
+        if (it.first == value)
+            next_disc = it.second;
+    }
     fout << next_disc.x << " " << next_disc.y << endl;
     fout.flush();
 }
