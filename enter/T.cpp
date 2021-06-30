@@ -251,6 +251,7 @@ std::map<int, Point> val_move;
 int minimax(State s, int depth, int alpha, int beta) {
     if(depth == 0 || s.game_end) {
         s.setValue();
+        // std::cout << "--- fuck " << s.value << std::endl;
         return s.value;
     }
     else if(s.cur_player == player) {
@@ -308,17 +309,17 @@ void write_valid_spot(std::ofstream& fout) {
     State s(board);
     s.valid_spots = next_valid_spots;
 
-    int val = minimax(s, 1, VALUE_MIN, VALUE_MAX);
+    int val = minimax(s, 6, VALUE_MIN, VALUE_MAX);
     Point best = val_move[val];
     /* fout */
     fout << best.x << " " << best.y << std::endl;
     fout.flush();
 
-    val = minimax(s, 6, VALUE_MIN, VALUE_MAX);
-    best = val_move[val];
-    /* fout */
-    fout << best.x << " " << best.y << std::endl;
-    fout.flush();
+    // val = minimax(s, 6, VALUE_MIN, VALUE_MAX);
+    // best = val_move[val];
+    // /* fout */
+    // fout << best.x << " " << best.y << std::endl;
+    // fout.flush();
 }
 
 int main(int, char** argv) {
