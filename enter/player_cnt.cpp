@@ -10,7 +10,6 @@
 #define INF 99999
 #define MAXMODE 10
 #define MINIMODE 20
-#define PRECISION 6
 using namespace std;
 
 struct Point {
@@ -21,11 +20,6 @@ struct Point {
 	bool operator!=(const Point& rhs) const { return !operator==(rhs); }
 	Point operator+(const Point& rhs) const { return Point(x + rhs.x, y + rhs.y); }
 	Point operator-(const Point& rhs) const { return Point(x - rhs.x, y - rhs.y); }
-    Point& operator=(const Point& rhs) {
-        this->x = rhs.x;
-        this->y = rhs.y;
-        return *this;
-    }
 };
 
 int Player;
@@ -33,14 +27,13 @@ const int SIZE = 8;
 array<array<int, SIZE>, SIZE> Board;   // read_board 從 state 讀入的版面
 vector<Point> Next_valid_spots;    // read_valid_spots 從 state 讀入的最下面的可放列表
 
-
 class OthelloState {
     public:
         /* const */
         enum SPOT_STATE { EMPTY = 0, BLACK = 1, WHITE = 2 };
         const array<Point, 8> directions{{
             Point(-1, -1), Point(-1, 0), Point(-1, 1),
-            Point(0, -1), /*{0, 0}, */Point(0, 1),
+            Point(0, -1), /*{0, 0}, */ Point(0, 1),
             Point(1, -1), Point(1, 0), Point(1, 1)
         }};
         const int weight_matrix[SIZE][SIZE] = {
@@ -127,7 +120,7 @@ class OthelloState {
     }
 
     int stability() {
-        const int edge = 100;
+        const int edge = 50;
         int ret = 0;
 
         if (board[0][0]) {
@@ -361,14 +354,9 @@ void write_valid_spot(ofstream& fout) {
     OthelloState cur_othello(Board);
     cur_othello.next_valid_spots = Next_valid_spots;
 
-    int value = Minimax(cur_othello, 1, -INF, INF, MAXMODE);
+    int value = Minimax(cur_othello, 2, -INF, INF, MAXMODE);
     Point next_disc = decisions[value];
     fout << next_disc.x << " " << next_disc.y << endl;
-    fout.flush();
-
-    int value2 = Minimax(cur_othello, PRECISION, -INF, INF, MAXMODE);
-    Point next_disc2 = decisions[value];
-    fout << next_disc2.x << " " << next_disc2.y << endl;
     fout.flush();
 }
 
